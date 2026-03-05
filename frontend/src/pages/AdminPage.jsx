@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Plus, Search, FileText, Trash2, Edit, Upload,
-    X, Loader2, FileCheck, AlertCircle
+    X, Loader2, FileCheck, AlertCircle, LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -24,6 +25,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import api from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 
 const emptyForm = {
     id: '', title: '', subject: '',
@@ -32,12 +34,20 @@ const emptyForm = {
 };
 
 export function AdminPage() {
+    const { logout } = useAuth();
+    const navigate = useNavigate();
     const [resources, setResources] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [search, setSearch] = useState('');
     const [formData, setFormData] = useState(emptyForm);
+
+    const handleLogout = () => {
+        logout();
+        toast.success('Signed out successfully');
+        navigate('/login', { replace: true });
+    };
 
     useEffect(() => { fetchResources(); }, []);
 
@@ -126,89 +136,102 @@ export function AdminPage() {
                     <p className="text-muted-foreground">Manage educational resources for students.</p>
                 </div>
 
-                <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setFormData(emptyForm); }}>
-                    <DialogTrigger asChild>
-                        <Button className="gap-2 h-11 px-6 rounded-xl">
-                            <Plus className="h-5 w-5" /> Add New Resource
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>{formData.id ? 'Edit Resource' : 'Upload New Resource'}</DialogTitle>
-                            <DialogDescription>Fill in the details below.</DialogDescription>
-                        </DialogHeader>
+                <div className="flex items-center gap-2">
+                    {/* Sign Out Button */}
+                    <Button
+                        variant="outline"
+                        className="gap-2"
+                        onClick={handleLogout}
+                    >
+                        <LogOut className="h-4 w-4" />
+                        Sign Out
+                    </Button>
 
-                        <form onSubmit={handleSubmit} className="space-y-5 py-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-medium">Title *</label>
-                                    <Input placeholder="e.g. Master React" value={formData.title} onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))} className="h-11" />
+                    {/* Add Resource Dialog */}
+                    <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setFormData(emptyForm); }}>
+                        <DialogTrigger asChild>
+                            <Button className="gap-2 h-11 px-6 rounded-xl">
+                                <Plus className="h-5 w-5" /> Add New Resource
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle>{formData.id ? 'Edit Resource' : 'Upload New Resource'}</DialogTitle>
+                                <DialogDescription>Fill in the details below.</DialogDescription>
+                            </DialogHeader>
+
+                            <form onSubmit={handleSubmit} className="space-y-5 py-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Title *</label>
+                                        <Input placeholder="e.g. Master React" value={formData.title} onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))} className="h-11" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Subject *</label>
+                                        <Input placeholder="e.g. Web Development" value={formData.subject} onChange={(e) => setFormData((p) => ({ ...p, subject: e.target.value }))} className="h-11" />
+                                    </div>
                                 </div>
+
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium">Subject *</label>
-                                    <Input placeholder="e.g. Web Development" value={formData.subject} onChange={(e) => setFormData((p) => ({ ...p, subject: e.target.value }))} className="h-11" />
+                                    <label className="text-sm font-medium">Category</label>
+                                    <Select value={formData.category} onValueChange={(v) => setFormData((p) => ({ ...p, category: v }))}>
+                                        <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="placement">Placement</SelectItem>
+                                            <SelectItem value="academics">Academics</SelectItem>
+                                            <SelectItem value="aptitude">Aptitude</SelectItem>
+                                            <SelectItem value="resume">Resume</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Category</label>
-                                <Select value={formData.category} onValueChange={(v) => setFormData((p) => ({ ...p, category: v }))}>
-                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="placement">Placement</SelectItem>
-                                        <SelectItem value="academics">Academics</SelectItem>
-                                        <SelectItem value="aptitude">Aptitude</SelectItem>
-                                        <SelectItem value="resume">Resume</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Description</label>
+                                    <Textarea placeholder="Briefly describe this resource..." className="resize-none min-h-[90px]" value={formData.description} onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))} />
+                                </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Description</label>
-                                <Textarea placeholder="Briefly describe this resource..." className="resize-none min-h-[90px]" value={formData.description} onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))} />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium">File (PDF / DOCX) *</label>
-                                <div className={cn('relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-colors', formData.fileName ? 'border-primary/40 bg-primary/5' : 'border-border hover:border-primary/40')}>
-                                    {formData.fileName ? (
-                                        <div className="flex items-center gap-3 text-primary">
-                                            <FileCheck className="h-7 w-7" />
-                                            <div>
-                                                <p className="text-sm font-medium line-clamp-1">{formData.fileName}</p>
-                                                <p className="text-[10px] uppercase opacity-60">{formData.fileType}</p>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">File (PDF / DOCX) *</label>
+                                    <div className={cn('relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-colors', formData.fileName ? 'border-primary/40 bg-primary/5' : 'border-border hover:border-primary/40')}>
+                                        {formData.fileName ? (
+                                            <div className="flex items-center gap-3 text-primary">
+                                                <FileCheck className="h-7 w-7" />
+                                                <div>
+                                                    <p className="text-sm font-medium line-clamp-1">{formData.fileName}</p>
+                                                    <p className="text-[10px] uppercase opacity-60">{formData.fileType}</p>
+                                                </div>
+                                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 ml-2 rounded-full" onClick={() => setFormData((p) => ({ ...p, file: null, fileName: p.id ? p.fileName : '', fileType: p.id ? p.fileType : '' }))}>
+                                                    <X className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 ml-2 rounded-full" onClick={() => setFormData((p) => ({ ...p, file: null, fileName: p.id ? p.fileName : '', fileType: p.id ? p.fileType : '' }))}>
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="h-11 w-11 rounded-full bg-secondary flex items-center justify-center text-muted-foreground">
-                                                <Upload className="h-5 w-5" />
-                                            </div>
-                                            <p className="text-sm font-medium">Click or drag to upload</p>
-                                            <p className="text-xs text-muted-foreground">PDF, DOCX up to 10MB</p>
-                                        </>
+                                        ) : (
+                                            <>
+                                                <div className="h-11 w-11 rounded-full bg-secondary flex items-center justify-center text-muted-foreground">
+                                                    <Upload className="h-5 w-5" />
+                                                </div>
+                                                <p className="text-sm font-medium">Click or drag to upload</p>
+                                                <p className="text-xs text-muted-foreground">PDF, DOCX up to 10MB</p>
+                                            </>
+                                        )}
+                                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} accept=".pdf,.docx,.doc" />
+                                    </div>
+                                    {formData.id && !formData.file && (
+                                        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                            <AlertCircle className="h-3 w-3" /> Leave empty to keep existing file
+                                        </p>
                                     )}
-                                    <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} accept=".pdf,.docx,.doc" />
                                 </div>
-                                {formData.id && !formData.file && (
-                                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                        <AlertCircle className="h-3 w-3" /> Leave empty to keep existing file
-                                    </p>
-                                )}
-                            </div>
 
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
-                                <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
-                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : formData.id ? 'Save Changes' : 'Upload'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
+                                    <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+                                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : formData.id ? 'Save Changes' : 'Upload'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
             {/* Table */}

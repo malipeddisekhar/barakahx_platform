@@ -14,14 +14,14 @@ export function Navbar() {
     const handleLogout = () => {
         logout();
         toast.success('Signed out successfully');
-        navigate('/', { replace: true });
+        navigate('/login', { replace: true });
     };
 
     return (
         <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
             <div className="container mx-auto flex h-16 items-center justify-between px-4">
                 {/* Logo */}
-                <Link to="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+                <Link to="/library" className="flex items-center gap-2 transition-opacity hover:opacity-80">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-elegant">
                         <BookOpen className="h-6 w-6" />
                     </div>
@@ -46,10 +46,10 @@ export function Navbar() {
                             {/* Admin dashboard quick link — only for admins */}
                             {user?.role === 'admin' && (
                                 <Link
-                                    to="/admin"
+                                    to="/admin/dashboard"
                                     className={cn(
                                         'hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                                        location.pathname === '/admin'
+                                        location.pathname.startsWith('/admin')
                                             ? 'bg-primary/10 text-primary'
                                             : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
                                     )}

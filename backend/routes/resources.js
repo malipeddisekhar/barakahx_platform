@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const Resource = require('../models/Resource');
 const authMiddleware = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -41,7 +42,7 @@ const upload = multer({
 });
 
 // ─── GET /api/resources ─ public ─────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
     try {
         const resources = await Resource.find().sort({ createdAt: -1 });
         res.json(resources);
@@ -51,8 +52,8 @@ router.get('/', async (req, res) => {
     }
 });
 
-// ─── GET /api/resources/:id ─ public ─────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+// ─── GET /api/resources/:id ─ authenticated users only ───────────────────────
+router.get('/:id', authMiddleware, async (req, res) => {
     try {
         const resource = await Resource.findById(req.params.id);
         if (!resource) return res.status(404).json({ message: 'Resource not found' });
@@ -62,8 +63,8 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// ─── POST /api/resources ─ protected ─────────────────────────────────────────
-router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
+// ─── POST /api/resources ─ admin only ────────────────────────────────────────
+router.post('/', authMiddleware, requireRole('admin'), upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'A file is required' });
@@ -85,7 +86,8 @@ router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
             fileUrl,
             fileName: req.file.originalname,
             fileType: ext,
-            uploadedBy: req.user._id,
+            // Admin is env-based (id = 'admin', not a valid ObjectId) — skip uploadedBy
+            ...(req.user.role !== 'admin' && { uploadedBy: req.user._id }),
         });
 
         await resource.save();
@@ -96,8 +98,8 @@ router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
     }
 });
 
-// ─── PUT /api/resources/:id ─ protected ──────────────────────────────────────
-router.put('/:id', authMiddleware, upload.single('file'), async (req, res) => {
+// ─── PUT /api/resources/:id ─ admin only ────────────────────────────────────
+router.put('/:id', authMiddleware, requireRole('admin'), upload.single('file'), async (req, res) => {
     try {
         const { title, subject, category, description } = req.body;
         const resource = await Resource.findById(req.params.id);
@@ -129,8 +131,8 @@ router.put('/:id', authMiddleware, upload.single('file'), async (req, res) => {
     }
 });
 
-// ─── DELETE /api/resources/:id ─ protected ───────────────────────────────────
-router.delete('/:id', authMiddleware, async (req, res) => {
+// ─── DELETE /api/resources/:id ─ admin only ────────────────────────────────
+router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
     try {
         const resource = await Resource.findById(req.params.id);
         if (!resource) return res.status(404).json({ message: 'Resource not found' });

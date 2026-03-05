@@ -10,8 +10,20 @@ const resourceRoutes = require('./routes/resources');
 const app = express();
 
 // Middleware
+const allowedOrigins = [
+    'http://localhost:5173',
+    process.env.FRONTEND_URL, // e.g. https://barakahx.vercel.app
+].filter(Boolean);
+
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (Postman, mobile) and whitelisted origins
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`CORS blocked: ${origin}`));
+        }
+    },
     credentials: true,
 }));
 app.use(express.json());

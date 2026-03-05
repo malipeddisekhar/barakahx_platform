@@ -43,8 +43,16 @@ export function AuthProvider({ children }) {
         setUser(null);
     };
 
+    const updateProfile = async (payload) => {
+        const { data } = await api.patch('/auth/me', payload);
+        const updated = { ...user, ...data };
+        localStorage.setItem('barakahx_user', JSON.stringify(updated));
+        setUser(updated);
+        return updated;
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, login, register, logout }}>
+        <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, login, register, logout, updateProfile }}>
             {children}
         </AuthContext.Provider>
     );
