@@ -10,4 +10,17 @@ export default defineConfig({
             '@': path.resolve(__dirname, './src'),
         },
     },
+    server: {
+        // Proxy /api to the local backend only in development
+        proxy: {
+            '/api': {
+                target: 'http://localhost:5000',
+                changeOrigin: true,
+            },
+        },
+    },
+    build: {
+        outDir: 'dist',
+        sourcemap: false,
+    },
 });

@@ -17,15 +17,15 @@ services:
       - key: NODE_ENV
         value: production
       - key: MONGO_URI
-        sync: false          # set manually in Render dashboard
+        sync: false          # set to your MongoDB Atlas URI in Render dashboard
       - key: JWT_SECRET
-        sync: false          # set manually in Render dashboard
+        sync: false          # set a strong random secret in Render dashboard
       - key: ADMIN_EMAIL
-        sync: false
+        sync: false          # e.g. admin@barakahx.com
       - key: ADMIN_PASSWORD
-        sync: false
+        sync: false          # strong admin password
       - key: FRONTEND_URL
-        sync: false          # e.g. https://barakahx.onrender.com
+        value: https://barakahx.onrender.com
 
   # ── Frontend (React / Vite → static site) ───────────────
   - type: web
@@ -34,6 +34,9 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://barakahx-api.onrender.com/api
     headers:
       - path: /*
         name: Cache-Control

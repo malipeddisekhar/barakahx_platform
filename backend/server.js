@@ -9,16 +9,22 @@ const resourceRoutes = require('./routes/resources');
 
 const app = express();
 
+// Trust Render's reverse proxy so req.protocol is 'https' in production
+app.set('trust proxy', 1);
+
 // Middleware
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
     process.env.FRONTEND_URL, // e.g. https://barakahx.vercel.app
 ].filter(Boolean);
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (Postman, mobile) and whitelisted origins
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow: no origin (Postman/mobile), any localhost port, and whitelisted origins
+        if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin) || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error(`CORS blocked: ${origin}`));

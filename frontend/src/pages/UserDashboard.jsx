@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    LogOut, Library, User, Edit3, BookOpen, X,
+    LogOut, Library, Edit3, BookOpen, X,
     Loader2, GraduationCap, Sparkles, Clock, Save,
-    Shield, Zap
+    Zap
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';

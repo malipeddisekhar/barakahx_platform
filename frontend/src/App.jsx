@@ -4,7 +4,7 @@ import { LibraryPage } from './pages/LibraryPage';
 import { AdminPage } from './pages/AdminPage';
 import { UserDashboard } from './pages/UserDashboard';
 import { LoginPage } from './pages/LoginPage';
-import { Toaster } from './components/ui/sonner';
+import { Toaster } from './components/ui/sonner.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
