@@ -1,7 +1,7 @@
-/* =======================================================
-   Render.com — deployment configuration
-   Docs: https://render.com/docs/render-yaml
-   ======================================================= */
+# =======================================================
+# Render.com - deployment configuration
+# Docs: https://render.com/docs/render-yaml
+# =======================================================
 
 services:
   # ── Backend (Node.js / Express) ─────────────────────────
