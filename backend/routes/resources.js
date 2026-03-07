@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const axios = require('axios');
 const { Readable } = require('stream');
 const cloudinary = require('cloudinary').v2;
 const Resource = require('../models/Resource');
@@ -58,45 +57,28 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// ─── GET /api/resources/:id/download ─ proxy file from Cloudinary ──────────
+// ─── GET /api/resources/:id/download ─ redirect directly to Cloudinary CDN ──
 router.get('/:id/download', authMiddleware, async (req, res) => {
     try {
         const resource = await Resource.findById(req.params.id);
         if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-        const fileUrl = resource.fileUrl;
-        console.log(`[DOWNLOAD] id=${req.params.id} fileName=${resource.fileName} fileUrl=${fileUrl}`);
+        const { fileUrl, filePublicId, fileName } = resource;
+        console.log(`[DOWNLOAD] id=${req.params.id} fileName=${fileName} publicId=${filePublicId}`);
 
-        // Guard: old resources uploaded before Cloudinary
-        if (!fileUrl || !fileUrl.startsWith('https://')) {
-            console.error(`[DOWNLOAD] Invalid/legacy fileUrl: "${fileUrl}" — needs re-upload`);
+        // Guard: resources uploaded before Cloudinary migration (no publicId or non-Cloudinary URL)
+        if (!filePublicId || !fileUrl || !fileUrl.startsWith('https://res.cloudinary.com')) {
+            console.error(`[DOWNLOAD] Legacy/invalid resource — fileUrl: "${fileUrl}"`);
             return res.status(410).json({
                 message: 'This file was uploaded before cloud storage was enabled. Please ask the admin to re-upload it.',
             });
         }
 
-        const safeFileName = resource.fileName.replace(/[^\w\s.\-]/g, '_');
-
-        // Fetch the entire file as a buffer — simpler and more reliable than piping
-        const response = await axios.get(fileUrl, {
-            responseType: 'arraybuffer',
-            timeout: 60000,
-            validateStatus: (status) => status < 500,
-        });
-
-        console.log(`[DOWNLOAD] Upstream status=${response.status} size=${response.data.byteLength} bytes`);
-
-        if (response.status !== 200) {
-            return res.status(502).json({
-                message: `Cloud storage returned status ${response.status}. The file may have been deleted from Cloudinary.`,
-            });
-        }
-
-        const contentType = response.headers['content-type'] || 'application/octet-stream';
-        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Length', response.data.byteLength);
-        return res.end(Buffer.from(response.data));
+        // Redirect the client directly to Cloudinary CDN.
+        // This eliminates all server memory and timeout issues — no proxying.
+        // The frontend fetch() follows the redirect, then creates a blob for download.
+        console.log(`[DOWNLOAD] Redirecting to Cloudinary CDN for ${fileName}`);
+        return res.redirect(302, fileUrl);
     } catch (err) {
         console.error(`[DOWNLOAD] Exception: ${err.message}`);
         return res.status(500).json({ message: 'Download failed. Please try again later.' });
