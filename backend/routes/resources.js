@@ -76,7 +76,7 @@ router.post('/', authMiddleware, requireRole('admin'), upload.single('file'), as
         }
 
         const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '');
-        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        const fileUrl = `/uploads/${req.file.filename}`;
 
         const resource = new Resource({
             title,

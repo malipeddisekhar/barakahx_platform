@@ -8,6 +8,12 @@ import { Skeleton } from '../components/ui/skeleton';
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 
+const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+function resolveFileUrl(url) {
+    if (!url) return url;
+    return url.startsWith('http') ? url : `${BACKEND_ORIGIN}${url}`;
+}
+
 export function LibraryPage() {
     const [resources, setResources] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -155,7 +161,7 @@ export function LibraryPage() {
                                 <CardFooter className="pt-4 border-t border-border/20">
                                     <Button
                                         className="w-full gap-2 shadow-sm"
-                                        onClick={() => window.open(res.fileUrl, '_blank')}
+                                        onClick={() => window.open(resolveFileUrl(res.fileUrl), '_blank')}
                                     >
                                         <Download className="h-4 w-4" />
                                         Download {res.fileType ? res.fileType.toUpperCase() : 'FILE'}
