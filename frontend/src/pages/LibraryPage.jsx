@@ -11,16 +11,38 @@ import api from '../lib/api';
 async function downloadFile(resourceId, fileName, setDownloading) {
     setDownloading(resourceId);
     try {
-        // Step 1 — Ask OUR backend for a signed Cloudinary URL.
-        // api (axios) automatically attaches the JWT from localStorage.
-        // If the token is missing/expired, axios interceptor redirects to login.
-        const { data } = await api.get(`/resources/${resourceId}/download`);
+        // Step 1: Ask our backend for the file URL (JWT verified server-side)
+        let data;
+        try {
+            const res = await api.get(`/resources/${resourceId}/download`);
+            data = res.data;
+        } catch (backendErr) {
+            const status = backendErr.response?.status;
+            const msg = backendErr.response?.data?.message;
+            if (status === 410) {
+                alert(msg || 'This file needs to be re-uploaded by the admin.');
+            } else if (status === 401) {
+                alert('Session expired. Please log in again.');
+            } else {
+                alert(`Server error (${status || 'no response'}). Please try again.`);
+            }
+            return;
+        }
 
-        // Step 2 — Fetch the file directly from Cloudinary CDN.
-        // Plain fetch with NO Authorization header — the signature is already
-        // embedded inside the URL itself, so Cloudinary accepts it.
-        const fileRes = await fetch(data.url);
-        if (!fileRes.ok) throw new Error(`CDN responded with ${fileRes.status}`);
+        // Step 2: Fetch the file from Cloudinary CDN — plain fetch, NO auth headers.
+        // The URL is publicly accessible; the JWT never reaches Cloudinary.
+        let fileRes;
+        try {
+            fileRes = await fetch(data.url);
+        } catch (networkErr) {
+            alert('Network error while downloading. Check your connection.');
+            return;
+        }
+
+        if (!fileRes.ok) {
+            alert(`File storage returned error ${fileRes.status}. Ask admin to re-upload this file.`);
+            return;
+        }
 
         const blob = await fileRes.blob();
         const blobUrl = URL.createObjectURL(blob);
@@ -32,12 +54,8 @@ async function downloadFile(resourceId, fileName, setDownloading) {
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
     } catch (err) {
-        console.error('Download error:', err);
-        if (err.response?.status === 410) {
-            alert(err.response.data.message);
-        } else {
-            alert('Download failed. Please try again.');
-        }
+        console.error('Unexpected download error:', err);
+        alert('Download failed. Please try again.');
     } finally {
         setDownloading(null);
     }

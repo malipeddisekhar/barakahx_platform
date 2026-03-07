@@ -58,15 +58,12 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // ─── GET /api/resources/:id/download ─────────────────────────────────────────
-// Architecture:
-//   1. JWT is verified here by authMiddleware (our server, our rules).
-//   2. We generate a 10-minute Cloudinary signed URL server-side.
-//      The signature is embedded IN the URL itself — no Authorization header
-//      ever goes from the browser to Cloudinary, so there is no 401.
-//   3. We return { url, fileName } as plain JSON.
-//   4. The frontend fetches the file directly from Cloudinary CDN using
-//      that signed URL (plain fetch, no auth headers) and saves as blob.
-//   This means zero bytes flow through our Node server — no OOM, no 502.
+// Flow:
+//   1. JWT verified here (our server). Only authenticated users reach this point.
+//   2. Return the plain Cloudinary CDN URL as JSON — no signing, no proxying.
+//   3. Frontend does a plain fetch() to Cloudinary with ZERO auth headers.
+//      Because we return JSON (not a redirect), the JWT never touches Cloudinary.
+//      Because the file was uploaded with access_mode:'public', no credentials needed.
 router.get('/:id/download', authMiddleware, async (req, res) => {
     try {
         const resource = await Resource.findById(req.params.id);
@@ -75,31 +72,21 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
         const { fileUrl, filePublicId, fileName } = resource;
         console.log(`[DOWNLOAD] id=${req.params.id} fileName=${fileName} publicId=${filePublicId}`);
 
-        // Guard: legacy resources uploaded before Cloudinary migration
+        // Guard: resources uploaded before Cloudinary was set up have no publicId
         if (!filePublicId || !fileUrl || !fileUrl.startsWith('https://res.cloudinary.com')) {
-            console.error(`[DOWNLOAD] Legacy/invalid resource — fileUrl: "${fileUrl}"`);
+            console.error(`[DOWNLOAD] Legacy resource — no valid Cloudinary URL. fileUrl="${fileUrl}"`);
             return res.status(410).json({
-                message: 'This file was uploaded before cloud storage was enabled. Please ask the admin to re-upload it.',
+                message: 'This file was uploaded before cloud storage was set up. Please ask the admin to delete and re-upload it.',
             });
         }
 
-        // Generate a time-limited signed URL (valid 10 minutes).
-        // Cloudinary verifies the HMAC-SHA1 signature embedded in the URL
-        // itself — no client credentials required.
-        const expiresAt = Math.floor(Date.now() / 1000) + 600;
-        const signedUrl = cloudinary.url(filePublicId, {
-            resource_type: 'raw',
-            type: 'upload',
-            sign_url: true,
-            expires_at: expiresAt,
-            secure: true,
-        });
-
-        console.log(`[DOWNLOAD] Returning signed URL for: ${fileName}`);
-        return res.json({ url: signedUrl, fileName });
+        // Return the CDN URL. Frontend fetches it directly — no proxying,
+        // no memory usage, no 502, no 401 from Cloudinary.
+        console.log(`[DOWNLOAD] Serving CDN URL for: ${fileName}`);
+        return res.json({ url: fileUrl, fileName });
     } catch (err) {
         console.error(`[DOWNLOAD] Exception: ${err.message}`);
-        return res.status(500).json({ message: 'Download failed. Please try again later.' });
+        return res.status(500).json({ message: 'Server error while preparing download.' });
     }
 });
 
