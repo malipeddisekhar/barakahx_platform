@@ -64,12 +64,32 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
         const resource = await Resource.findById(req.params.id);
         if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-        if (!resource.fileUrl) return res.status(404).json({ message: 'File not found' });
+        const fileUrl = resource.fileUrl;
+        console.log(`[DOWNLOAD] id=${req.params.id} fileName=${resource.fileName} fileUrl=${fileUrl}`);
+
+        // Guard: old resources uploaded before Cloudinary had a relative or localhost URL
+        if (!fileUrl || !fileUrl.startsWith('https://')) {
+            console.error(`[DOWNLOAD] Invalid/legacy fileUrl: "${fileUrl}" — needs re-upload`);
+            return res.status(410).json({
+                message: 'This file was uploaded before cloud storage was enabled. Please ask the admin to re-upload it.',
+            });
+        }
 
         const safeFileName = resource.fileName.replace(/[^\w\s.\-]/g, '_');
 
-        // Fetch directly from Cloudinary — axios follows redirects automatically
-        const response = await axios.get(resource.fileUrl, { responseType: 'stream' });
+        const response = await axios.get(fileUrl, {
+            responseType: 'stream',
+            timeout: 30000,
+            validateStatus: (status) => status < 500,
+        });
+
+        console.log(`[DOWNLOAD] Upstream status=${response.status} for ${fileUrl}`);
+
+        if (response.status !== 200) {
+            return res.status(502).json({
+                message: `Cloud storage returned status ${response.status}. The file may have been deleted from Cloudinary.`,
+            });
+        }
 
         res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
         res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
@@ -79,10 +99,11 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
 
         response.data.pipe(res);
     } catch (err) {
-        console.error('Download error:', err.message);
-        res.status(500).json({ message: 'Download failed' });
+        console.error(`[DOWNLOAD] Exception: ${err.message}`);
+        res.status(500).json({ message: 'Download failed. Please try again later.' });
     }
 });
+
 
 // ─── GET /api/resources/:id ─ authenticated users only ───────────────────────
 router.get('/:id', authMiddleware, async (req, res) => {

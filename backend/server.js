@@ -52,6 +52,16 @@ mongoose
     .connect(MONGO_URI)
     .then(() => {
         console.log('✅ MongoDB connected successfully');
+
+        // Warn if Cloudinary env vars are missing
+        const missingVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']
+            .filter((k) => !process.env[k]);
+        if (missingVars.length > 0) {
+            console.warn(`⚠️  Missing Cloudinary env vars: ${missingVars.join(', ')} — file uploads will fail!`);
+        } else {
+            console.log('✅ Cloudinary env vars present');
+        }
+
         app.listen(PORT, () => {
             console.log(`🚀 Server running on http://localhost:${PORT}`);
         });

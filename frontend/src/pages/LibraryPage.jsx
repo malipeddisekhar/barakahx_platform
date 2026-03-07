@@ -10,13 +10,20 @@ import api from '../lib/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-async function downloadFile(resourceId, fileName) {
+async function downloadFile(resourceId, fileName, setDownloading) {
+    setDownloading(resourceId);
     try {
         const token = localStorage.getItem('barakahx_token');
         const response = await fetch(`${API_BASE}/resources/${resourceId}/download`, {
             headers: { Authorization: `Bearer ${token}` },
         });
-        if (!response.ok) throw new Error('Download failed');
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            const msg = err.message || 'Download failed';
+            // 410 = file needs re-upload by admin
+            alert(response.status === 410 ? msg : 'Download failed. Please try again.');
+            return;
+        }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -28,7 +35,9 @@ async function downloadFile(resourceId, fileName) {
         URL.revokeObjectURL(url);
     } catch (err) {
         console.error('Download error:', err);
-        alert('Download failed. Please try again.');
+        alert('Download failed. Please check your connection and try again.');
+    } finally {
+        setDownloading(null);
     }
 }
 
@@ -37,6 +46,7 @@ export function LibraryPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState(null);
+    const [downloading, setDownloading] = useState(null);
 
     useEffect(() => {
         fetchResources();
@@ -179,10 +189,11 @@ export function LibraryPage() {
                                 <CardFooter className="pt-4 border-t border-border/20">
                                     <Button
                                         className="w-full gap-2 shadow-sm"
-                                        onClick={() => downloadFile(res._id, res.fileName)}
+                                        disabled={downloading === res._id}
+                                        onClick={() => downloadFile(res._id, res.fileName, setDownloading)}
                                     >
                                         <Download className="h-4 w-4" />
-                                        Download {res.fileType ? res.fileType.toUpperCase() : 'FILE'}
+                                        {downloading === res._id ? 'Downloading...' : `Download ${res.fileType ? res.fileType.toUpperCase() : 'FILE'}`}
                                     </Button>
                                 </CardFooter>
                             </Card>
