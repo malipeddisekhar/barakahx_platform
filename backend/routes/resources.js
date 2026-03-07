@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const { Readable } = require('stream');
 const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const Resource = require('../models/Resource');
 const authMiddleware = require('../middleware/auth');
 const { requireRole } = require('../middleware/auth');
@@ -15,19 +15,21 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer storage config – Cloudinary
-const storage = new CloudinaryStorage({
-    cloudinary,
-    params: async (req, file) => {
-        const safeOriginal = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-        return {
-            folder: 'barakahx',
-            resource_type: 'raw',
-            public_id: `${Date.now()}-${safeOriginal}`,
-        };
-    },
-});
+// Helper: upload a buffer to Cloudinary and return { secure_url, public_id }
+function uploadToCloudinary(buffer, publicId) {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { folder: 'barakahx', resource_type: 'raw', public_id: publicId },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+        Readable.from(buffer).pipe(stream);
+    });
+}
 
+// Multer – memory storage (no disk writes on server)
 const fileFilter = (req, file, cb) => {
     const allowed = ['.pdf', '.doc', '.docx'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -39,7 +41,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-    storage,
+    storage: multer.memoryStorage(),
     fileFilter,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
@@ -79,8 +81,11 @@ router.post('/', authMiddleware, requireRole('admin'), upload.single('file'), as
         }
 
         const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '');
-        const fileUrl = req.file.path;        // Cloudinary secure URL
-        const filePublicId = req.file.filename; // Cloudinary public_id
+        const safeOriginal = req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const publicId = `${Date.now()}-${safeOriginal}`;
+        const uploaded = await uploadToCloudinary(req.file.buffer, publicId);
+        const fileUrl = uploaded.secure_url;
+        const filePublicId = uploaded.public_id;
 
         const resource = new Resource({
             title,
@@ -122,8 +127,11 @@ router.put('/:id', authMiddleware, requireRole('admin'), upload.single('file'), 
                 await cloudinary.uploader.destroy(resource.filePublicId, { resource_type: 'raw' });
             }
             const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '');
-            resource.fileUrl = req.file.path;
-            resource.filePublicId = req.file.filename;
+            const safeOriginal = req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+            const publicId = `${Date.now()}-${safeOriginal}`;
+            const uploaded = await uploadToCloudinary(req.file.buffer, publicId);
+            resource.fileUrl = uploaded.secure_url;
+            resource.filePublicId = uploaded.public_id;
             resource.fileName = req.file.originalname;
             resource.fileType = ext;
         }
