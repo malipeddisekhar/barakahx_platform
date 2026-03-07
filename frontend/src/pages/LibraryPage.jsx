@@ -9,22 +9,33 @@ import { useState, useEffect } from 'react';
 import api from '../lib/api';
 
 const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 function resolveFileUrl(url) {
     if (!url) return url;
-    if (!url.startsWith('http')) return `${BACKEND_ORIGIN}${url}`;
-    // For Cloudinary raw uploads, inject fl_attachment so browser downloads instead of failing to render
-    return url.replace('/upload/', '/upload/fl_attachment/');
+    return url.startsWith('http') ? url : `${BACKEND_ORIGIN}${url}`;
 }
 
-function downloadFile(url, fileName) {
-    const a = document.createElement('a');
-    a.href = resolveFileUrl(url);
-    a.download = fileName || 'download';
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+async function downloadFile(resourceId, fileName) {
+    try {
+        const token = localStorage.getItem('barakahx_token');
+        const response = await fetch(`${API_BASE}/resources/${resourceId}/download`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error('Download failed');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName || 'download';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('Download error:', err);
+        alert('Download failed. Please try again.');
+    }
 }
 
 export function LibraryPage() {
@@ -174,7 +185,7 @@ export function LibraryPage() {
                                 <CardFooter className="pt-4 border-t border-border/20">
                                     <Button
                                         className="w-full gap-2 shadow-sm"
-                                        onClick={() => downloadFile(res.fileUrl, res.fileName)}
+                                        onClick={() => downloadFile(res._id, res.fileName)}
                                     >
                                         <Download className="h-4 w-4" />
                                         Download {res.fileType ? res.fileType.toUpperCase() : 'FILE'}

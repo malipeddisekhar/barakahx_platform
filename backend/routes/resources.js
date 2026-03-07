@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const https = require('https');
 const { Readable } = require('stream');
 const cloudinary = require('cloudinary').v2;
 const Resource = require('../models/Resource');
@@ -53,6 +54,31 @@ router.get('/', authMiddleware, async (req, res) => {
         res.json(resources);
     } catch (err) {
         console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// ─── GET /api/resources/:id/download ─ proxy file from Cloudinary ──────────
+router.get('/:id/download', authMiddleware, async (req, res) => {
+    try {
+        const resource = await Resource.findById(req.params.id);
+        if (!resource) return res.status(404).json({ message: 'Resource not found' });
+
+        const safeFileName = resource.fileName.replace(/[^\w\s.\-]/g, '_');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+
+        https.get(resource.fileUrl, (stream) => {
+            if (stream.statusCode !== 200) {
+                return res.status(502).json({ message: 'Could not fetch file from storage' });
+            }
+            stream.pipe(res);
+        }).on('error', (err) => {
+            console.error('Proxy download error:', err);
+            res.status(500).json({ message: 'Download failed' });
+        });
+    } catch (err) {
+        console.error('Download error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 });
