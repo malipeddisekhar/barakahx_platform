@@ -34,6 +34,10 @@ const resourceSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        filePublicId: {
+            type: String,
+            default: '',
+        },
         uploadedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',

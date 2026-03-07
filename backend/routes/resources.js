@@ -2,26 +2,29 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const Resource = require('../models/Resource');
 const authMiddleware = require('../middleware/auth');
 const { requireRole } = require('../middleware/auth');
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Configure Cloudinary from env vars
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-// Multer storage config – local disk
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const timestamp = Date.now();
+// Multer storage config – Cloudinary
+const storage = new CloudinaryStorage({
+    cloudinary,
+    params: async (req, file) => {
         const safeOriginal = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-        cb(null, `${timestamp}-${safeOriginal}`);
+        return {
+            folder: 'barakahx',
+            resource_type: 'raw',
+            public_id: `${Date.now()}-${safeOriginal}`,
+        };
     },
 });
 
@@ -76,7 +79,8 @@ router.post('/', authMiddleware, requireRole('admin'), upload.single('file'), as
         }
 
         const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '');
-        const fileUrl = `/uploads/${req.file.filename}`;
+        const fileUrl = req.file.path;        // Cloudinary secure URL
+        const filePublicId = req.file.filename; // Cloudinary public_id
 
         const resource = new Resource({
             title,
@@ -84,6 +88,7 @@ router.post('/', authMiddleware, requireRole('admin'), upload.single('file'), as
             category: category || 'placement',
             description: description || '',
             fileUrl,
+            filePublicId,
             fileName: req.file.originalname,
             fileType: ext,
             // Admin is env-based (id = 'admin', not a valid ObjectId) — skip uploadedBy
@@ -112,13 +117,13 @@ router.put('/:id', authMiddleware, requireRole('admin'), upload.single('file'), 
 
         // Replace file if new file uploaded
         if (req.file) {
-            // Delete old file
-            const oldFilePath = path.join(uploadDir, path.basename(resource.fileUrl));
-            if (fs.existsSync(oldFilePath)) {
-                fs.unlinkSync(oldFilePath);
+            // Delete old file from Cloudinary
+            if (resource.filePublicId) {
+                await cloudinary.uploader.destroy(resource.filePublicId, { resource_type: 'raw' });
             }
             const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '');
-            resource.fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+            resource.fileUrl = req.file.path;
+            resource.filePublicId = req.file.filename;
             resource.fileName = req.file.originalname;
             resource.fileType = ext;
         }
@@ -137,10 +142,9 @@ router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => 
         const resource = await Resource.findById(req.params.id);
         if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-        // Delete file from disk
-        const filePath = path.join(uploadDir, path.basename(resource.fileUrl));
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        // Delete file from Cloudinary
+        if (resource.filePublicId) {
+            await cloudinary.uploader.destroy(resource.filePublicId, { resource_type: 'raw' });
         }
 
         await resource.deleteOne();

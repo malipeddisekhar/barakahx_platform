@@ -27,6 +27,12 @@ services:
         sync: false          # strong admin password
       - key: FRONTEND_URL
         value: https://barakahx.onrender.com
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false          # set in Render dashboard
+      - key: CLOUDINARY_API_KEY
+        sync: false          # set in Render dashboard
+      - key: CLOUDINARY_API_SECRET
+        sync: false          # set in Render dashboard
 
   # ── Frontend (React / Vite → static site) ───────────────
   - type: web
