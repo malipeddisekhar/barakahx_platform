@@ -11,7 +11,20 @@ import api from '../lib/api';
 const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 function resolveFileUrl(url) {
     if (!url) return url;
-    return url.startsWith('http') ? url : `${BACKEND_ORIGIN}${url}`;
+    if (!url.startsWith('http')) return `${BACKEND_ORIGIN}${url}`;
+    // For Cloudinary raw uploads, inject fl_attachment so browser downloads instead of failing to render
+    return url.replace('/upload/', '/upload/fl_attachment/');
+}
+
+function downloadFile(url, fileName) {
+    const a = document.createElement('a');
+    a.href = resolveFileUrl(url);
+    a.download = fileName || 'download';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 export function LibraryPage() {
@@ -161,7 +174,7 @@ export function LibraryPage() {
                                 <CardFooter className="pt-4 border-t border-border/20">
                                     <Button
                                         className="w-full gap-2 shadow-sm"
-                                        onClick={() => window.open(resolveFileUrl(res.fileUrl), '_blank')}
+                                        onClick={() => downloadFile(res.fileUrl, res.fileName)}
                                     >
                                         <Download className="h-4 w-4" />
                                         Download {res.fileType ? res.fileType.toUpperCase() : 'FILE'}
