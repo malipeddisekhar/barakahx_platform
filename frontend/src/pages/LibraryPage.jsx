@@ -57,7 +57,7 @@ export function LibraryPage() {
                 >
                     Your peaceful learning space
                 </motion.div>
-                <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-foreground">
+                <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold tracking-tight text-foreground">
                     Study <span className="text-primary">calmly.</span><br />
                     Prepare <span className="text-accent">confidently.</span><br />
                     <span className="text-sm text-muted-foreground mt-2 block">

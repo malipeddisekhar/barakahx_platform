@@ -97,7 +97,7 @@ function InfoPanel({ mode, onSwitch }) {
 // ─── Login Form ─────────────────────────────────────────────────────
 function LoginForm({ onSubmit, email, setEmail, password, setPassword, loading }) {
     return (
-        <div className="flex flex-col justify-center h-full px-10 max-w-sm mx-auto w-full">
+        <div className="flex flex-col justify-center h-full px-5 sm:px-10 max-w-sm mx-auto w-full">
             <div className="mb-8">
                 <h1 className="text-2xl font-bold">Welcome back 👋</h1>
                 <p className="text-muted-foreground text-sm mt-1">
@@ -130,7 +130,7 @@ function LoginForm({ onSubmit, email, setEmail, password, setPassword, loading }
 // ─── Register Form ───────────────────────────────────────────────────
 function RegisterForm({ onSubmit, username, setUsername, email, setEmail, password, setPassword, loading }) {
     return (
-        <div className="flex flex-col justify-center h-full px-10 max-w-sm mx-auto w-full">
+        <div className="flex flex-col justify-center h-full px-5 sm:px-10 max-w-sm mx-auto w-full">
             <div className="mb-8">
                 <h1 className="text-2xl font-bold">Start learning today 🚀</h1>
                 <p className="text-muted-foreground text-sm mt-1">
@@ -310,7 +310,7 @@ export function LoginPage() {
                 </div>
 
                 {/* Form */}
-                <div className="flex-1 px-6 pb-8 pt-4">
+                <div className="flex-1 px-4 pb-8 pt-4">
                     <AnimatePresence mode="wait">
                         {mode === 'login' ? (
                             <motion.div key="mob-login" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}

@@ -10,8 +10,6 @@ export function Layout({ children }) {
             {/* Soft animated background */}
             <div className="soft-gradient-bg fixed inset-0 -z-10" />
 
-            {/* Subtle texture overlay */}
-            <div className="fixed inset-0 -z-10 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/p6.png')]" />
 
             <Navbar />
 
@@ -29,11 +27,10 @@ export function Layout({ children }) {
                 </AnimatePresence>
             </main>
 
-            <footer className="mt-auto border-t bg-background/40 backdrop-blur-sm py-12">
+            <footer className="mt-auto border-t bg-background/40 backdrop-blur-sm py-8">
                 <div className="container mx-auto px-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                        &copy; {new Date().getFullYear()} CalmStudy Portal. Study calmly. Prepare confidently.
-                        With ❤️ by the BarakahX team Head محمد اکمل عرفان
+                        &copy; {new Date().getFullYear()} BarakahX Study Platform. Study calmly. Prepare confidently.
                     </p>
                 </div>
             </footer>
