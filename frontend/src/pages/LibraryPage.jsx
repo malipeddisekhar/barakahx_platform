@@ -8,54 +8,43 @@ import { Skeleton } from '../components/ui/skeleton';
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 async function downloadFile(resourceId, fileName, setDownloading) {
     setDownloading(resourceId);
     try {
-        // Step 1: Ask our backend for the file URL (JWT verified server-side)
-        let data;
-        try {
-            const res = await api.get(`/resources/${resourceId}/download`);
-            data = res.data;
-        } catch (backendErr) {
-            const status = backendErr.response?.status;
-            const msg = backendErr.response?.data?.message;
-            if (status === 410) {
-                alert(msg || 'This file needs to be re-uploaded by the admin.');
-            } else if (status === 401) {
-                alert('Session expired. Please log in again.');
-            } else {
-                alert(`Server error (${status || 'no response'}). Please try again.`);
+        // Single-step: fetch from OUR backend with JWT.
+        // Backend authenticates with Cloudinary using API key/secret (private_download_url)
+        // and streams the bytes back. The browser NEVER contacts Cloudinary directly,
+        // so CDN 401 is impossible.
+        const token = localStorage.getItem('barakahx_token');
+        const response = await fetch(`${API_BASE}/resources/${resourceId}/download`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            let msg = 'Download failed. Please try again.';
+            if (contentType.includes('application/json')) {
+                const err = await response.json().catch(() => ({}));
+                msg = err.message || msg;
             }
+            alert(msg);
             return;
         }
 
-        // Step 2: Fetch the file from Cloudinary CDN — plain fetch, NO auth headers.
-        // The URL is publicly accessible; the JWT never reaches Cloudinary.
-        let fileRes;
-        try {
-            fileRes = await fetch(data.url);
-        } catch (networkErr) {
-            alert('Network error while downloading. Check your connection.');
-            return;
-        }
-
-        if (!fileRes.ok) {
-            alert(`File storage returned error ${fileRes.status}. Ask admin to re-upload this file.`);
-            return;
-        }
-
-        const blob = await fileRes.blob();
+        const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = blobUrl;
-        a.download = fileName || data.fileName || 'download';
+        a.download = fileName || 'download';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
     } catch (err) {
-        console.error('Unexpected download error:', err);
-        alert('Download failed. Please try again.');
+        console.error('Download error:', err);
+        alert('Download failed. Please check your connection and try again.');
     } finally {
         setDownloading(null);
     }
