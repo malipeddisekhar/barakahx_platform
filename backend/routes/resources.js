@@ -67,7 +67,7 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
         const fileUrl = resource.fileUrl;
         console.log(`[DOWNLOAD] id=${req.params.id} fileName=${resource.fileName} fileUrl=${fileUrl}`);
 
-        // Guard: old resources uploaded before Cloudinary had a relative or localhost URL
+        // Guard: old resources uploaded before Cloudinary
         if (!fileUrl || !fileUrl.startsWith('https://')) {
             console.error(`[DOWNLOAD] Invalid/legacy fileUrl: "${fileUrl}" — needs re-upload`);
             return res.status(410).json({
@@ -77,13 +77,14 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
 
         const safeFileName = resource.fileName.replace(/[^\w\s.\-]/g, '_');
 
+        // Fetch the entire file as a buffer — simpler and more reliable than piping
         const response = await axios.get(fileUrl, {
-            responseType: 'stream',
-            timeout: 30000,
+            responseType: 'arraybuffer',
+            timeout: 60000,
             validateStatus: (status) => status < 500,
         });
 
-        console.log(`[DOWNLOAD] Upstream status=${response.status} for ${fileUrl}`);
+        console.log(`[DOWNLOAD] Upstream status=${response.status} size=${response.data.byteLength} bytes`);
 
         if (response.status !== 200) {
             return res.status(502).json({
@@ -91,18 +92,17 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
             });
         }
 
+        const contentType = response.headers['content-type'] || 'application/octet-stream';
         res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
-        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
-        if (response.headers['content-length']) {
-            res.setHeader('Content-Length', response.headers['content-length']);
-        }
-
-        response.data.pipe(res);
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Length', response.data.byteLength);
+        return res.end(Buffer.from(response.data));
     } catch (err) {
         console.error(`[DOWNLOAD] Exception: ${err.message}`);
-        res.status(500).json({ message: 'Download failed. Please try again later.' });
+        return res.status(500).json({ message: 'Download failed. Please try again later.' });
     }
 });
+
 
 
 // ─── GET /api/resources/:id ─ authenticated users only ───────────────────────
