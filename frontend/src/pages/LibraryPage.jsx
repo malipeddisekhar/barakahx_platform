@@ -8,34 +8,36 @@ import { Skeleton } from '../components/ui/skeleton';
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 async function downloadFile(resourceId, fileName, setDownloading) {
     setDownloading(resourceId);
     try {
-        const token = localStorage.getItem('barakahx_token');
-        const response = await fetch(`${API_BASE}/resources/${resourceId}/download`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            const msg = err.message || 'Download failed';
-            // 410 = file needs re-upload by admin
-            alert(response.status === 410 ? msg : 'Download failed. Please try again.');
-            return;
-        }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
+        // Step 1 — Ask OUR backend for a signed Cloudinary URL.
+        // api (axios) automatically attaches the JWT from localStorage.
+        // If the token is missing/expired, axios interceptor redirects to login.
+        const { data } = await api.get(`/resources/${resourceId}/download`);
+
+        // Step 2 — Fetch the file directly from Cloudinary CDN.
+        // Plain fetch with NO Authorization header — the signature is already
+        // embedded inside the URL itself, so Cloudinary accepts it.
+        const fileRes = await fetch(data.url);
+        if (!fileRes.ok) throw new Error(`CDN responded with ${fileRes.status}`);
+
+        const blob = await fileRes.blob();
+        const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName || 'download';
+        a.href = blobUrl;
+        a.download = fileName || data.fileName || 'download';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(blobUrl);
     } catch (err) {
         console.error('Download error:', err);
-        alert('Download failed. Please check your connection and try again.');
+        if (err.response?.status === 410) {
+            alert(err.response.data.message);
+        } else {
+            alert('Download failed. Please try again.');
+        }
     } finally {
         setDownloading(null);
     }

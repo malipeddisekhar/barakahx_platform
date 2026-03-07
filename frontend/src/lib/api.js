@@ -15,14 +15,25 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// Handle 401 responses globally — clear token and redirect to login
+// Handle 401 responses globally — only clear token if the server explicitly
+// says the token is invalid (our backend 401s), not for other 401 sources.
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        const msg = error.response?.data?.message || '';
+        // Only treat as "session expired" when OUR backend returns 401 with
+        // one of its known auth-failure messages. This prevents a Cloudinary
+        // or third-party 401 from accidentally wiping the user's session.
+        const isAuthFailure =
+            status === 401 &&
+            (msg.includes('No token') ||
+                msg.includes('Token is not valid') ||
+                msg.includes('User not found') ||
+                msg.includes('Not authenticated'));
+        if (isAuthFailure) {
             localStorage.removeItem('barakahx_token');
             localStorage.removeItem('barakahx_user');
-            // Only redirect if not already on login page to avoid infinite loops
             if (!window.location.pathname.includes('/login')) {
                 window.location.replace('/login');
             }

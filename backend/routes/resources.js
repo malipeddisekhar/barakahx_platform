@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const axios = require('axios');
 const { Readable } = require('stream');
 const cloudinary = require('cloudinary').v2;
 const Resource = require('../models/Resource');
@@ -58,15 +57,16 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// ─── GET /api/resources/:id/download ─ signed URL + streaming proxy ──────────
-// Why streaming proxy (not redirect):
-//   redirect() causes the browser to forward the JWT Authorization header
-//   to Cloudinary, which rejects it with 401 Unauthorized.
-// Why signed URL:
-//   Cloudinary may restrict direct CDN access; a time-limited signature
-//   generated server-side with the API secret always works.
-// Why responseType:'stream' (not 'arraybuffer'):
-//   Streaming never holds the full file in RAM — safe on Render free tier.
+// ─── GET /api/resources/:id/download ─────────────────────────────────────────
+// Architecture:
+//   1. JWT is verified here by authMiddleware (our server, our rules).
+//   2. We generate a 10-minute Cloudinary signed URL server-side.
+//      The signature is embedded IN the URL itself — no Authorization header
+//      ever goes from the browser to Cloudinary, so there is no 401.
+//   3. We return { url, fileName } as plain JSON.
+//   4. The frontend fetches the file directly from Cloudinary CDN using
+//      that signed URL (plain fetch, no auth headers) and saves as blob.
+//   This means zero bytes flow through our Node server — no OOM, no 502.
 router.get('/:id/download', authMiddleware, async (req, res) => {
     try {
         const resource = await Resource.findById(req.params.id);
@@ -83,10 +83,10 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
             });
         }
 
-        // Build a time-limited signed URL using the Cloudinary API secret.
-        // This bypasses any account-level delivery restrictions and never
-        // requires the client to present Cloudinary credentials.
-        const expiresAt = Math.floor(Date.now() / 1000) + 600; // valid 10 min
+        // Generate a time-limited signed URL (valid 10 minutes).
+        // Cloudinary verifies the HMAC-SHA1 signature embedded in the URL
+        // itself — no client credentials required.
+        const expiresAt = Math.floor(Date.now() / 1000) + 600;
         const signedUrl = cloudinary.url(filePublicId, {
             resource_type: 'raw',
             type: 'upload',
@@ -95,33 +95,11 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
             secure: true,
         });
 
-        console.log(`[DOWNLOAD] Streaming via signed URL for: ${fileName}`);
-
-        const upstream = await axios({
-            method: 'GET',
-            url: signedUrl,
-            responseType: 'stream',
-            timeout: 60000,
-        });
-
-        const safeFileName = (fileName || 'download').replace(/[^\w\s.\-]/g, '_');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
-        res.setHeader('Content-Type', upstream.headers['content-type'] || 'application/octet-stream');
-        if (upstream.headers['content-length']) {
-            res.setHeader('Content-Length', upstream.headers['content-length']);
-        }
-
-        // Pipe stream — no file ever held fully in memory
-        upstream.data.on('error', (streamErr) => {
-            console.error(`[DOWNLOAD] Stream error: ${streamErr.message}`);
-            if (!res.headersSent) res.status(500).end();
-        });
-        upstream.data.pipe(res);
+        console.log(`[DOWNLOAD] Returning signed URL for: ${fileName}`);
+        return res.json({ url: signedUrl, fileName });
     } catch (err) {
         console.error(`[DOWNLOAD] Exception: ${err.message}`);
-        if (!res.headersSent) {
-            return res.status(500).json({ message: 'Download failed. Please try again later.' });
-        }
+        return res.status(500).json({ message: 'Download failed. Please try again later.' });
     }
 });
 
