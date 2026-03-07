@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const axios = require('axios');
 const { Readable } = require('stream');
 const cloudinary = require('cloudinary').v2;
 const Resource = require('../models/Resource');
@@ -19,7 +20,7 @@ cloudinary.config({
 function uploadToCloudinary(buffer, publicId) {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-            { folder: 'barakahx', resource_type: 'raw', public_id: publicId },
+            { folder: 'barakahx', resource_type: 'raw', public_id: publicId, access_mode: 'public' },
             (error, result) => {
                 if (error) return reject(error);
                 resolve(result);
@@ -57,7 +58,15 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// ─── GET /api/resources/:id/download ─ redirect directly to Cloudinary CDN ──
+// ─── GET /api/resources/:id/download ─ signed URL + streaming proxy ──────────
+// Why streaming proxy (not redirect):
+//   redirect() causes the browser to forward the JWT Authorization header
+//   to Cloudinary, which rejects it with 401 Unauthorized.
+// Why signed URL:
+//   Cloudinary may restrict direct CDN access; a time-limited signature
+//   generated server-side with the API secret always works.
+// Why responseType:'stream' (not 'arraybuffer'):
+//   Streaming never holds the full file in RAM — safe on Render free tier.
 router.get('/:id/download', authMiddleware, async (req, res) => {
     try {
         const resource = await Resource.findById(req.params.id);
@@ -66,7 +75,7 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
         const { fileUrl, filePublicId, fileName } = resource;
         console.log(`[DOWNLOAD] id=${req.params.id} fileName=${fileName} publicId=${filePublicId}`);
 
-        // Guard: resources uploaded before Cloudinary migration (no publicId or non-Cloudinary URL)
+        // Guard: legacy resources uploaded before Cloudinary migration
         if (!filePublicId || !fileUrl || !fileUrl.startsWith('https://res.cloudinary.com')) {
             console.error(`[DOWNLOAD] Legacy/invalid resource — fileUrl: "${fileUrl}"`);
             return res.status(410).json({
@@ -74,14 +83,45 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
             });
         }
 
-        // Redirect the client directly to Cloudinary CDN.
-        // This eliminates all server memory and timeout issues — no proxying.
-        // The frontend fetch() follows the redirect, then creates a blob for download.
-        console.log(`[DOWNLOAD] Redirecting to Cloudinary CDN for ${fileName}`);
-        return res.redirect(302, fileUrl);
+        // Build a time-limited signed URL using the Cloudinary API secret.
+        // This bypasses any account-level delivery restrictions and never
+        // requires the client to present Cloudinary credentials.
+        const expiresAt = Math.floor(Date.now() / 1000) + 600; // valid 10 min
+        const signedUrl = cloudinary.url(filePublicId, {
+            resource_type: 'raw',
+            type: 'upload',
+            sign_url: true,
+            expires_at: expiresAt,
+            secure: true,
+        });
+
+        console.log(`[DOWNLOAD] Streaming via signed URL for: ${fileName}`);
+
+        const upstream = await axios({
+            method: 'GET',
+            url: signedUrl,
+            responseType: 'stream',
+            timeout: 60000,
+        });
+
+        const safeFileName = (fileName || 'download').replace(/[^\w\s.\-]/g, '_');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+        res.setHeader('Content-Type', upstream.headers['content-type'] || 'application/octet-stream');
+        if (upstream.headers['content-length']) {
+            res.setHeader('Content-Length', upstream.headers['content-length']);
+        }
+
+        // Pipe stream — no file ever held fully in memory
+        upstream.data.on('error', (streamErr) => {
+            console.error(`[DOWNLOAD] Stream error: ${streamErr.message}`);
+            if (!res.headersSent) res.status(500).end();
+        });
+        upstream.data.pipe(res);
     } catch (err) {
         console.error(`[DOWNLOAD] Exception: ${err.message}`);
-        return res.status(500).json({ message: 'Download failed. Please try again later.' });
+        if (!res.headersSent) {
+            return res.status(500).json({ message: 'Download failed. Please try again later.' });
+        }
     }
 });
 
