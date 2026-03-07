@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const https = require('https');
+const axios = require('axios');
 const { Readable } = require('stream');
 const cloudinary = require('cloudinary').v2;
 const Resource = require('../models/Resource');
@@ -64,22 +64,23 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
         const resource = await Resource.findById(req.params.id);
         if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-        const safeFileName = resource.fileName.replace(/[^\w\s.\-]/g, '_');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
-        res.setHeader('Content-Type', 'application/octet-stream');
+        if (!resource.fileUrl) return res.status(404).json({ message: 'File not found' });
 
-        https.get(resource.fileUrl, (stream) => {
-            if (stream.statusCode !== 200) {
-                return res.status(502).json({ message: 'Could not fetch file from storage' });
-            }
-            stream.pipe(res);
-        }).on('error', (err) => {
-            console.error('Proxy download error:', err);
-            res.status(500).json({ message: 'Download failed' });
-        });
+        const safeFileName = resource.fileName.replace(/[^\w\s.\-]/g, '_');
+
+        // Fetch directly from Cloudinary — axios follows redirects automatically
+        const response = await axios.get(resource.fileUrl, { responseType: 'stream' });
+
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
+
+        response.data.pipe(res);
     } catch (err) {
-        console.error('Download error:', err);
-        res.status(500).json({ message: 'Server error' });
+        console.error('Download error:', err.message);
+        res.status(500).json({ message: 'Download failed' });
     }
 });
 
