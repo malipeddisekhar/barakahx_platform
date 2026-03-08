@@ -12,10 +12,20 @@ function generateToken(payload) {
 // Registration is ALWAYS role: "user" — admin cannot be created via registration.
 router.post('/register', async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const username = req.body.username?.trim();
+        const email = req.body.email?.trim().toLowerCase();
+        const password = req.body.password;
 
         if (!username || !email || !password) {
             return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        if (username.length < 3) {
+            return res.status(400).json({ message: 'Username must be at least 3 characters long' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
         }
 
         // Block attempts to register with the predefined admin email
@@ -23,9 +33,14 @@ router.post('/register', async (req, res) => {
             return res.status(403).json({ message: 'This email cannot be used for registration' });
         }
 
-        const existing = await User.findOne({ email });
-        if (existing) {
+        const existingEmail = await User.findOne({ email });
+        if (existingEmail) {
             return res.status(409).json({ message: 'Email already registered' });
+        }
+
+        const existingUsername = await User.findOne({ username });
+        if (existingUsername) {
+            return res.status(409).json({ message: 'Username already taken' });
         }
 
         // Force role = 'user' regardless of anything in the request body
@@ -40,6 +55,15 @@ router.post('/register', async (req, res) => {
         });
     } catch (err) {
         console.error('Register error:', err);
+        if (err.code === 11000) {
+            if (err.keyPattern?.email) {
+                return res.status(409).json({ message: 'Email already registered' });
+            }
+            if (err.keyPattern?.username) {
+                return res.status(409).json({ message: 'Username already taken' });
+            }
+            return res.status(409).json({ message: 'Account already exists' });
+        }
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -49,7 +73,8 @@ router.post('/register', async (req, res) => {
 // Otherwise → look up from MongoDB and authenticate as 'user'.
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = req.body.email?.trim().toLowerCase();
+        const password = req.body.password;
 
         if (!email || !password) {
             return res.status(400).json({ message: 'Email and password are required' });

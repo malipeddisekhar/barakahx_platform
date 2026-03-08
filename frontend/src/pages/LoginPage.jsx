@@ -108,12 +108,12 @@ function LoginForm({ onSubmit, email, setEmail, password, setPassword, loading }
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium">Email address</label>
                     <Input type="email" placeholder="you@example.com" value={email}
-                        onChange={(e) => setEmail(e.target.value)} required className="h-11" />
+                        onChange={(e) => setEmail(e.target.value)} required autoComplete="email" className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium">Password</label>
                     <Input type="password" placeholder="••••••••" value={password}
-                        onChange={(e) => setPassword(e.target.value)} required className="h-11" />
+                        onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" className="h-11" />
                 </div>
                 <Button type="submit" className="w-full h-11 gap-2 rounded-xl mt-2" disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
@@ -141,17 +141,17 @@ function RegisterForm({ onSubmit, username, setUsername, email, setEmail, passwo
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium">Username</label>
                     <Input placeholder="e.g. arjun_student" value={username}
-                        onChange={(e) => setUsername(e.target.value)} required className="h-11" />
+                        onChange={(e) => setUsername(e.target.value)} required autoComplete="username" className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium">Email address</label>
                     <Input type="email" placeholder="you@example.com" value={email}
-                        onChange={(e) => setEmail(e.target.value)} required className="h-11" />
+                        onChange={(e) => setEmail(e.target.value)} required autoComplete="email" className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium">Password</label>
                     <Input type="password" placeholder="Min. 6 characters" value={password}
-                        onChange={(e) => setPassword(e.target.value)} required minLength={6} className="h-11" />
+                        onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete="new-password" className="h-11" />
                 </div>
                 {/* Benefits */}
                 <div className="bg-primary/5 border border-primary/15 rounded-xl px-4 py-3 space-y-1.5">
