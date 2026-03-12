@@ -33,7 +33,7 @@ export function Layout({ children }) {
                         &copy; {new Date().getFullYear()} BarakahX. Study calmly. Prepare confidently.
                     </p>
                     <p className="text-[10px] text-muted-foreground/40 select-none">
-                        developed by malipeddi sekhar
+                        developed by Mohammad Irfan Shaik
                     </p>
                 </div>
             </footer>
