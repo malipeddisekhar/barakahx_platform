@@ -30,7 +30,7 @@ export function Layout({ children }) {
             <footer className="mt-auto border-t bg-background/40 backdrop-blur-sm py-6">
                 <div className="container mx-auto px-4 text-center space-y-1">
                     <p className="text-sm text-muted-foreground">
-                        &copy; {new Date().getFullYear()} BarakahX Study Platform. Study calmly. Prepare confidently.
+                        &copy; {new Date().getFullYear()} BarakahX. Study calmly. Prepare confidently.
                     </p>
                     <p className="text-[10px] text-muted-foreground/40 select-none">
                         developed by malipeddi sekhar
